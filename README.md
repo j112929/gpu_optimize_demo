@@ -18,6 +18,9 @@ A comprehensive suite of tools for optimizing deep learning workloads on GPUs, f
 - 🔥 **Triton Kernels** — Flash Attention, Fused Ops, INT8/INT4 Quantization
 - 🚀 **Ray Distributed** — Multi-node training, hyperparameter tuning, model serving
 - 🤖 **SGLang Inference** — High-performance LLM serving with structured generation
+- ⚙️ **Compile Optimization** — torch.compile, CUDA Graphs, TensorRT (NEW!)
+- 📉 **Training Optimization** — Mixed Precision, FSDP, DeepSpeed ZeRO (NEW!)
+- 💾 **Memory Optimization** — Offloading, Checkpointing, Memory Pool (NEW!)
 
 ---
 
@@ -30,32 +33,61 @@ A comprehensive suite of tools for optimizing deep learning workloads on GPUs, f
 | AllReduce Latency | 12ms | 4ms | **3×** |
 | Flash Attention (2K seq) | 15.8ms | 3.2ms | **4.9×** |
 | INT8 Inference Memory | 16GB | 4GB | **4×** |
+| torch.compile | 10ms/step | 6ms/step | **1.7×** |
+| Mixed Precision (AMP) | 16GB VRAM | 8GB VRAM | **2× mem** |
+| CUDA Graphs | 1.2ms latency | 0.9ms latency | **1.3×** |
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ Architecture — Complete ML Lifecycle
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                          GPU Optimization Toolkit                            │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│   ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
-│   │   Profiling │  │ IO Optimize │  │    NCCL     │  │   Triton    │        │
-│   │             │  │             │  │             │  │   Kernels   │        │
-│   │ • Profiler  │  │ • Prefetch  │  │ • AllReduce │  │ • FlashAttn │        │
-│   │ • Timer     │  │ • MemMap    │  │ • Bandwidth │  │ • FusedOps  │        │
-│   │ • Memory    │  │ • Benchmark │  │ • Overlap   │  │ • Quantize  │        │
-│   └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘        │
-│                                                                              │
-│   ┌─────────────────────────────┐  ┌─────────────────────────────┐          │
-│   │      Ray Distributed        │  │      SGLang Inference       │          │
-│   │                             │  │                             │          │
-│   │ • Train  • Tune  • Serve    │  │ • Server  • Client  • CoT   │          │
-│   │ • Data   • Cluster          │  │ • JSON    • Benchmark       │          │
-│   └─────────────────────────────┘  └─────────────────────────────┘          │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────────┐
+│                      GPU Optimization Toolkit — ML Lifecycle                    │
+├────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  ┌──────────────────────────────────────────────────────────────────────────┐  │
+│  │                         PRE-TRAINING OPTIMIZATION                         │  │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐      │  │
+│  │  │   Compile   │  │   Training  │  │   Memory    │  │ Distributed │      │  │
+│  │  │ • torch.    │  │ • AMP       │  │ • Pool      │  │ • FSDP      │      │  │
+│  │  │   compile   │  │ • Gradient  │  │ • Offload   │  │ • DeepSpeed │      │  │
+│  │  │ • CUDA      │  │   Ckpt      │  │ • Profile   │  │ • Ray       │      │  │
+│  │  │   Graphs    │  │ • Optimizer │  │             │  │             │      │  │
+│  │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘      │  │
+│  └──────────────────────────────────────────────────────────────────────────┘  │
+│                                       ↓                                         │
+│  ┌──────────────────────────────────────────────────────────────────────────┐  │
+│  │                        POST-TRAINING OPTIMIZATION                         │  │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                       │  │
+│  │  │    LoRA     │  │    PEFT     │  │  Alignment  │                       │  │
+│  │  │ • LoRA      │  │ • Adapter   │  │ • RLHF/PPO  │                       │  │
+│  │  │ • QLoRA     │  │ • Prefix    │  │ • DPO       │                       │  │
+│  │  │ • DoRA      │  │ • Prompt    │  │ • KTO       │                       │  │
+│  │  └─────────────┘  └─────────────┘  └─────────────┘                       │  │
+│  └──────────────────────────────────────────────────────────────────────────┘  │
+│                                       ↓                                         │
+│  ┌──────────────────────────────────────────────────────────────────────────┐  │
+│  │                        INFERENCE OPTIMIZATION                             │  │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐      │  │
+│  │  │ Speculative │  │  Batching   │  │  KV-Cache   │  │  Quantize   │      │  │
+│  │  │ • Draft     │  │ • Continuous│  │ • Paged     │  │ • GPTQ      │      │  │
+│  │  │   Model     │  │ • Dynamic   │  │ • Sliding   │  │ • AWQ       │      │  │
+│  │  │ • Medusa    │  │ • Scheduler │  │ • Prefix    │  │ • INT4/INT8 │      │  │
+│  │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘      │  │
+│  └──────────────────────────────────────────────────────────────────────────┘  │
+│                                       ↓                                         │
+│  ┌──────────────────────────────────────────────────────────────────────────┐  │
+│  │                         SERVING & EVALUATION                              │  │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐      │  │
+│  │  │   SGLang    │  │  Benchmark  │  │   Safety    │  │   Metrics   │      │  │
+│  │  │ • Server    │  │ • MMLU      │  │ • Toxicity  │  │ • Latency   │      │  │
+│  │  │ • Client    │  │ • HellaSwag │  │ • Bias      │  │ • Throughput│      │  │
+│  │  │ • Programs  │  │ • HumanEval │  │ • Red-team  │  │ • Perplexity│      │  │
+│  │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘      │  │
+│  └──────────────────────────────────────────────────────────────────────────┘  │
+│                                                                                 │
+└────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
