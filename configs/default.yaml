@@ -1,0 +1,30 @@
+# Default configuration for GPU Optimization Demo
+
+# General settings
+seed: 42
+debug: false
+device: cuda
+
+# Profiler settings
+profiler:
+  output_dir: ./profiler_traces
+  profile_cuda: true
+  profile_cpu: true
+  profile_memory: true
+  export_chrome_trace: true
+  export_tensorboard: true
+
+# DataLoader settings
+dataloader:
+  batch_size: 64
+  num_workers: 4
+  pin_memory: true
+  prefetch_factor: 2
+  persistent_workers: true
+
+# Distributed training settings
+distributed:
+  backend: nccl
+  world_size: 1
+  local_rank: 0
+  bucket_size_mb: 25.0
