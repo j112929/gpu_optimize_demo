@@ -1,447 +1,203 @@
 """
-KV-Cache Optimization - Efficient key-value caching for LLMs.
+KV Cache Management with Prefix Caching (Radix Attention).
 
 Provides:
-- Standard KV-Cache management
-- Paged Attention (vLLM-style)
-- Sliding Window Cache
-- Prefix Caching
+- KVCacheManager: Manages KV cache allocation and eviction
+- RadixTree: Data structure for efficient prefix matching and reuse
+- PagedMemory: Simulates paged memory management for KV blocks
+
+Key benefits:
+- Reuses KV cache for shared prefixes (System prompts, few-shot examples)
+- Reduces latency for multi-turn chat and agentic workflows
 """
 
 import torch
-import torch.nn as nn
+import collections
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
-import math
-
+from typing import Dict, List, Optional, Tuple, Set, Any
+import time
 
 @dataclass
-class KVCacheConfig:
-    """Configuration for KV-Cache."""
-    # Dimensions
-    num_layers: int = 32
-    num_heads: int = 32
-    head_dim: int = 128
-    
-    # Size
-    max_batch_size: int = 32
-    max_sequence_length: int = 4096
-    
-    # Optimization
-    dtype: torch.dtype = torch.float16
-    
-    # Paging (for PagedKVCache)
-    page_size: int = 16
-    num_pages: int = 1024
+class CacheBlock:
+    """A single block of KV cache memory."""
+    block_id: int
+    size: int
+    is_full: bool = False
+    ref_count: int = 0
+    last_accessed: float = 0.0
 
+class RadixNode:
+    """Node in the Radix Tree for Prefix Caching."""
+    def __init__(self, key: Tuple[int, ...]):
+        self.key = key  # Tuple of token IDs
+        self.children: Dict[int, 'RadixNode'] = {} # Map from first token of key to child
+        self.block_indices: List[int] = [] # Indices of KV blocks storing this sequence
+        self.parent: Optional['RadixNode'] = None
+        self.last_accessed: float = time.time()
+        self.value: Any = None # Optional payload
 
-class KVCache:
+class RadixCache:
     """
-    Standard KV-Cache for transformer inference.
-    
-    Stores key-value pairs from previous tokens to avoid
-    recomputation during autoregressive generation.
-    
-    Example:
-        >>> cache = KVCache(config)
-        >>> 
-        >>> # First token
-        >>> k, v = attention(x)
-        >>> cache.update(layer_idx=0, key=k, value=v)
-        >>> 
-        >>> # Next tokens
-        >>> past_k, past_v = cache.get(layer_idx=0)
-        >>> full_k = torch.cat([past_k, k], dim=2)
+    Radix Tree for managing Prefix Caching.
+    Allows mapping token sequences to cached KV blocks.
     """
+    def __init__(self):
+        self.root = RadixNode(())
+        self.nodes_pool = {} # Track all nodes for eviction policies
     
-    def __init__(self, config: KVCacheConfig):
-        self.config = config
+    def insert(self, tokens: List[int], value: Any = None):
+        """Insert a token sequence into the tree."""
+        node = self.root
         
-        # Initialize cache tensors
-        # Shape: [batch, num_heads, seq_len, head_dim]
-        cache_shape = (
-            config.max_batch_size,
-            config.num_heads,
-            config.max_sequence_length,
-            config.head_dim,
-        )
-        
-        self.key_cache = [
-            torch.zeros(cache_shape, dtype=config.dtype)
-            for _ in range(config.num_layers)
-        ]
-        self.value_cache = [
-            torch.zeros(cache_shape, dtype=config.dtype)
-            for _ in range(config.num_layers)
-        ]
-        
-        # Track sequence lengths per batch
-        self.seq_lengths = torch.zeros(config.max_batch_size, dtype=torch.long)
-    
-    def to(self, device: torch.device) -> "KVCache":
-        """Move cache to device."""
-        for i in range(len(self.key_cache)):
-            self.key_cache[i] = self.key_cache[i].to(device)
-            self.value_cache[i] = self.value_cache[i].to(device)
-        self.seq_lengths = self.seq_lengths.to(device)
-        return self
-    
-    def update(
-        self,
-        layer_idx: int,
-        key: torch.Tensor,
-        value: torch.Tensor,
-        batch_indices: Optional[torch.Tensor] = None,
-    ):
-        """
-        Update cache with new key-value pairs.
-        
-        Args:
-            layer_idx: Layer index
-            key: New keys [batch, heads, new_seq, dim]
-            value: New values [batch, heads, new_seq, dim]
-            batch_indices: Which batch elements to update
-        """
-        batch_size = key.size(0)
-        new_seq_len = key.size(2)
-        
-        if batch_indices is None:
-            batch_indices = torch.arange(batch_size, device=key.device)
-        
-        for i, batch_idx in enumerate(batch_indices):
-            seq_pos = self.seq_lengths[batch_idx].item()
-            end_pos = seq_pos + new_seq_len
+        # Simplified insertion (Trie style for demo)
+        for token in tokens:
+            if token not in node.children:
+                child = RadixNode((token,))
+                child.parent = node
+                node.children[token] = child
+            node = node.children[token]
+            node.last_accessed = time.time()
             
-            self.key_cache[layer_idx][batch_idx, :, seq_pos:end_pos] = key[i]
-            self.value_cache[layer_idx][batch_idx, :, seq_pos:end_pos] = value[i]
-        
-        # Update sequence lengths
-        self.seq_lengths[batch_indices] += new_seq_len
-    
-    def get(
-        self,
-        layer_idx: int,
-        batch_indices: Optional[torch.Tensor] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Get cached key-value pairs.
-        
-        Returns:
-            Tuple of (keys, values) for specified batch elements
-        """
-        if batch_indices is None:
-            batch_indices = torch.arange(
-                self.config.max_batch_size,
-                device=self.key_cache[layer_idx].device,
-            )
-        
-        keys = []
-        values = []
-        
-        for batch_idx in batch_indices:
-            seq_len = self.seq_lengths[batch_idx].item()
-            keys.append(self.key_cache[layer_idx][batch_idx, :, :seq_len])
-            values.append(self.value_cache[layer_idx][batch_idx, :, :seq_len])
-        
-        # Pad to same length
-        max_len = max(k.size(1) for k in keys)
-        
-        padded_keys = torch.zeros(
-            len(keys), self.config.num_heads, max_len, self.config.head_dim,
-            dtype=self.config.dtype, device=keys[0].device,
-        )
-        padded_values = torch.zeros_like(padded_keys)
-        
-        for i, (k, v) in enumerate(zip(keys, values)):
-            padded_keys[i, :, :k.size(1)] = k
-            padded_values[i, :, :v.size(1)] = v
-        
-        return padded_keys, padded_values
-    
-    def clear(self, batch_indices: Optional[torch.Tensor] = None):
-        """Clear cache for specified batch elements."""
-        if batch_indices is None:
-            for i in range(len(self.key_cache)):
-                self.key_cache[i].zero_()
-                self.value_cache[i].zero_()
-            self.seq_lengths.zero_()
-        else:
-            for batch_idx in batch_indices:
-                for i in range(len(self.key_cache)):
-                    self.key_cache[i][batch_idx].zero_()
-                    self.value_cache[i][batch_idx].zero_()
-                self.seq_lengths[batch_idx] = 0
-    
-    def memory_usage_mb(self) -> float:
-        """Get memory usage in MB."""
-        bytes_per_element = 2 if self.config.dtype == torch.float16 else 4
-        total_elements = (
-            2 * self.config.num_layers *
-            self.config.max_batch_size *
-            self.config.num_heads *
-            self.config.max_sequence_length *
-            self.config.head_dim
-        )
-        return total_elements * bytes_per_element / (1024 ** 2)
+        node.value = value
+        return node
 
+    def match_prefix(self, tokens: List[int]) -> Tuple[List[int], Any]:
+        """
+        Find the longest cached prefix for the given tokens.
+        Returns: (cached_tokens, cached_value)
+        """
+        node = self.root
+        matched_tokens = []
+        last_value = None
+        
+        for token in tokens:
+            if token in node.children:
+                node = node.children[token]
+                node.last_accessed = time.time()
+                matched_tokens.append(token)
+                if node.value is not None:
+                    last_value = node.value
+            else:
+                break
+                
+        return matched_tokens, last_value
 
 class PagedKVCache:
     """
-    Paged KV-Cache (vLLM-style) for memory efficiency.
-    
-    Uses paging to:
-    - Reduce memory fragmentation
-    - Enable dynamic memory allocation
-    - Support longer sequences
-    
-    Example:
-        >>> cache = PagedKVCache(config)
-        >>> 
-        >>> # Allocate pages for a request
-        >>> block_ids = cache.allocate(request_id, num_tokens)
-        >>> 
-        >>> # Store KV
-        >>> cache.update(layer_idx, block_ids, positions, keys, values)
+    Simulates Paged KV Cache memory management.
     """
+    def __init__(self, num_blocks: int, block_size: int, hidden_dim: int, num_layers: int):
+        self.block_size = block_size
+        self.num_blocks = num_blocks
+        self.free_blocks = set(range(num_blocks))
+        self.used_blocks: Dict[int, CacheBlock] = {}
+        
+        # Simulate GPU memory (just metadata here)
+        self.memory_usage = 0
     
-    def __init__(self, config: KVCacheConfig):
-        self.config = config
-        
-        # Physical pages
-        # Shape: [num_pages, 2 (k/v), num_heads, page_size, head_dim]
-        page_shape = (
-            config.num_pages,
-            config.num_layers,
-            2,  # Key and Value
-            config.num_heads,
-            config.page_size,
-            config.head_dim,
-        )
-        
-        self.pages = torch.zeros(page_shape, dtype=config.dtype)
-        
-        # Page table: maps request -> list of page indices
-        self.page_table: Dict[str, List[int]] = {}
-        
-        # Free pages
-        self.free_pages = list(range(config.num_pages))
-    
-    def to(self, device: torch.device) -> "PagedKVCache":
-        """Move cache to device."""
-        self.pages = self.pages.to(device)
-        return self
-    
-    def allocate(
-        self,
-        request_id: str,
-        num_tokens: int,
-    ) -> List[int]:
-        """
-        Allocate pages for a request.
-        
-        Returns:
-            List of allocated page indices
-        """
-        num_pages_needed = math.ceil(num_tokens / self.config.page_size)
-        
-        if len(self.free_pages) < num_pages_needed:
-            raise RuntimeError(f"Not enough free pages: need {num_pages_needed}, have {len(self.free_pages)}")
-        
+    def allocate(self, num_needed: int) -> List[int]:
+        """Allocate 'num_needed' blocks."""
+        if len(self.free_blocks) < num_needed:
+            raise MemoryError("Out of KV cache memory")
+            
         allocated = []
-        for _ in range(num_pages_needed):
-            page_idx = self.free_pages.pop(0)
-            allocated.append(page_idx)
-        
-        self.page_table[request_id] = allocated
-        
+        for _ in range(num_needed):
+            bid = self.free_blocks.pop()
+            block = CacheBlock(block_id=bid, size=self.block_size)
+            block.ref_count = 1
+            block.last_accessed = time.time()
+            self.used_blocks[bid] = block
+            allocated.append(bid)
+            
         return allocated
-    
-    def free(self, request_id: str):
-        """Free pages for a request."""
-        if request_id in self.page_table:
-            pages = self.page_table.pop(request_id)
-            self.free_pages.extend(pages)
-    
-    def update(
-        self,
-        layer_idx: int,
-        request_id: str,
-        positions: torch.Tensor,
-        keys: torch.Tensor,
-        values: torch.Tensor,
-    ):
-        """Update cache at specified positions."""
-        if request_id not in self.page_table:
-            raise KeyError(f"Request {request_id} not found in page table")
+
+    def free(self, block_ids: List[int]):
+        """Free blocks, decrementing ref count."""
+        for bid in block_ids:
+            if bid in self.used_blocks:
+                block = self.used_blocks[bid]
+                block.ref_count -= 1
+                if block.ref_count <= 0:
+                    del self.used_blocks[bid]
+                    self.free_blocks.add(bid)
+                    
+    def get_token_capacity(self):
+        return self.num_blocks * self.block_size
+
+
+class PrefixCacheManager:
+    """
+    Manager that combines Radix Tree and Paged KV Cache.
+    """
+    def __init__(self, block_size=16, max_blocks=1000):
+        self.radix_tree = RadixCache()
+        self.paged_cache = PagedKVCache(max_blocks, block_size, 4096, 32)
+        self.block_size = block_size
         
-        page_indices = self.page_table[request_id]
+        # Stats
+        self.hits = 0
+        self.misses = 0
         
-        for i, pos in enumerate(positions):
-            page_idx = page_indices[pos // self.config.page_size]
-            offset = pos % self.config.page_size
+    def check_cache(self, input_ids: List[int]):
+        """Check for existing prefix in cache."""
+        cached_tokens, blocks = self.radix_tree.match_prefix(input_ids)
+        
+        if not cached_tokens:
+            self.misses += 1
+            return 0, []
+        
+        self.hits += 1
+        return len(cached_tokens), blocks
+
+    def cache_request(self, input_ids: List[int], blocks: List[int]):
+        """Cache a processed request."""
+        # Insert into radix tree
+        self.radix_tree.insert(input_ids, blocks)
+        
+        # Increment ref counts for blocks
+        # (In a real system, we'd need complex ref-counting logic)
+        for bid in blocks:
+            if bid in self.paged_cache.used_blocks:
+                self.paged_cache.used_blocks[bid].ref_count += 1
+
+                
+class FP8KVCache(PagedKVCache):
+    """
+    FP8 Quantized KV Cache.
+    
+    Reduces memory usage by 2x-4x compared to FP16/BF16.
+    Simulates E4M3/E5M2 encoding.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.quantization_scale = 1.0
+        
+    def quantize_block(self, key_block: torch.Tensor, value_block: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Quantize K/V blocks to FP8.
+        
+        Args:
+            key_block: [num_tokens, num_heads, head_dim]
+            value_block: [num_tokens, num_heads, head_dim]
+        """
+        # Simulation of FP8 casting
+        # In real scenario: usage of torch.float8_e4m3fn
+        if hasattr(torch, 'float8_e4m3fn'):
+            k_fp8 = key_block.to(torch.float8_e4m3fn)
+            v_fp8 = value_block.to(torch.float8_e4m3fn)
+            return k_fp8, v_fp8
+        else:
+            # Fallback simulation: reduced range clamping
+            # e4m3 has range [-448, 448] roughly
+            k_clamped = torch.clamp(key_block, -448, 448)
+            v_clamped = torch.clamp(value_block, -448, 448)
+            # Add quantization noise or just return clamped
+            return k_clamped, v_clamped
             
-            self.pages[page_idx, layer_idx, 0, :, offset] = keys[i]
-            self.pages[page_idx, layer_idx, 1, :, offset] = values[i]
-    
-    def get(
-        self,
-        layer_idx: int,
-        request_id: str,
-        positions: torch.Tensor,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Get cached values at positions."""
-        page_indices = self.page_table[request_id]
-        
-        keys = []
-        values = []
-        
-        for pos in positions:
-            page_idx = page_indices[pos // self.config.page_size]
-            offset = pos % self.config.page_size
-            
-            keys.append(self.pages[page_idx, layer_idx, 0, :, offset])
-            values.append(self.pages[page_idx, layer_idx, 1, :, offset])
-        
-        return torch.stack(keys), torch.stack(values)
-    
-    def utilization(self) -> float:
-        """Get page utilization."""
-        used = self.config.num_pages - len(self.free_pages)
-        return used / self.config.num_pages
+    def get_memory_usage(self) -> float:
+        """Get memory usage in MB (assuming FP8)."""
+        num_used = len(self.used_blocks)
+        # 1 byte per element for FP8
+        bytes_per_block = self.block_size * 4096 * 2  # simplified: hidden_dim * 2 (K+V)
+        return (num_used * bytes_per_block) / (1024**2)
 
-
-# =============================================================================
-# Sliding Window Cache
-# =============================================================================
-
-class SlidingWindowCache:
-    """
-    Sliding Window KV-Cache for long sequences.
-    
-    Only keeps the most recent tokens in cache,
-    reducing memory for very long sequences.
-    """
-    
-    def __init__(
-        self,
-        window_size: int = 4096,
-        config: Optional[KVCacheConfig] = None,
-    ):
-        self.window_size = window_size
-        self.config = config or KVCacheConfig()
-        
-        # Circular buffer
-        cache_shape = (
-            self.config.max_batch_size,
-            self.config.num_heads,
-            window_size,
-            self.config.head_dim,
-        )
-        
-        self.key_cache = [
-            torch.zeros(cache_shape, dtype=self.config.dtype)
-            for _ in range(self.config.num_layers)
-        ]
-        self.value_cache = [
-            torch.zeros(cache_shape, dtype=self.config.dtype)
-            for _ in range(self.config.num_layers)
-        ]
-        
-        # Current position in circular buffer
-        self.positions = torch.zeros(self.config.max_batch_size, dtype=torch.long)
-        self.total_tokens = torch.zeros(self.config.max_batch_size, dtype=torch.long)
-    
-    def update(
-        self,
-        layer_idx: int,
-        key: torch.Tensor,
-        value: torch.Tensor,
-        batch_idx: int = 0,
-    ):
-        """Update cache with new token (circular)."""
-        pos = self.positions[batch_idx].item() % self.window_size
-        
-        self.key_cache[layer_idx][batch_idx, :, pos] = key.squeeze()
-        self.value_cache[layer_idx][batch_idx, :, pos] = value.squeeze()
-        
-        self.positions[batch_idx] += 1
-        self.total_tokens[batch_idx] += 1
-    
-    def get(
-        self,
-        layer_idx: int,
-        batch_idx: int = 0,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Get cached values in correct order."""
-        total = min(self.total_tokens[batch_idx].item(), self.window_size)
-        
-        if total < self.window_size:
-            # Not wrapped yet
-            return (
-                self.key_cache[layer_idx][batch_idx, :, :total],
-                self.value_cache[layer_idx][batch_idx, :, :total],
-            )
-        
-        # Need to reorder for wrapped buffer
-        pos = self.positions[batch_idx].item() % self.window_size
-        
-        # Concatenate: [pos:end] + [0:pos]
-        key = torch.cat([
-            self.key_cache[layer_idx][batch_idx, :, pos:],
-            self.key_cache[layer_idx][batch_idx, :, :pos],
-        ], dim=1)
-        
-        value = torch.cat([
-            self.value_cache[layer_idx][batch_idx, :, pos:],
-            self.value_cache[layer_idx][batch_idx, :, :pos],
-        ], dim=1)
-        
-        return key, value
-
-
-# =============================================================================
-# Prefix Cache
-# =============================================================================
-
-class PrefixCache:
-    """
-    Prefix Cache for sharing KV-cache across requests.
-    
-    Caches common prefixes (system prompts, few-shot examples)
-    to avoid recomputation.
-    """
-    
-    def __init__(self, config: KVCacheConfig):
-        self.config = config
-        
-        # Cached prefixes: hash -> (keys, values)
-        self._cache: Dict[str, Tuple[List[torch.Tensor], List[torch.Tensor]]] = {}
-    
-    def cache_prefix(
-        self,
-        prefix_tokens: torch.Tensor,
-        keys: List[torch.Tensor],
-        values: List[torch.Tensor],
-    ) -> str:
-        """Cache a prefix's KV values."""
-        # Create hash from tokens
-        prefix_hash = hash(tuple(prefix_tokens.tolist()))
-        prefix_key = f"prefix_{prefix_hash}"
-        
-        self._cache[prefix_key] = (
-            [k.clone() for k in keys],
-            [v.clone() for v in values],
-        )
-        
-        return prefix_key
-    
-    def get_prefix(
-        self,
-        prefix_key: str,
-    ) -> Optional[Tuple[List[torch.Tensor], List[torch.Tensor]]]:
-        """Get cached prefix KV values."""
-        return self._cache.get(prefix_key)
-    
-    def clear(self):
-        """Clear all cached prefixes."""
-        self._cache.clear()

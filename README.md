@@ -5,83 +5,30 @@
 [![CUDA 12.0+](https://img.shields.io/badge/cuda-12.0+-76b900.svg)](https://developer.nvidia.com/cuda-toolkit)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> **Production-ready toolkit covering the complete ML lifecycle: Pre-Training → Post-Training → Inference → Evaluation**
-
----
-
-## 🎯 Why This Toolkit?
-
-Modern ML engineering requires optimization at every stage. This toolkit provides:
-
-| Stage | Challenge | Our Solution |
-|-------|-----------|--------------|
-| **Pre-Training** | GPU underutilization, slow I/O, OOM | torch.compile, AMP, FSDP, Memory Pool |
-| **Post-Training** | Full fine-tuning too expensive | LoRA/QLoRA, PEFT, DPO/RLHF |
-| **Inference** | High latency, low throughput | Speculative Decoding, KV-Cache, Quantization |
-| **Evaluation** | No standardized benchmarks | MMLU, Safety checks, Latency metrics |
-
----
-
-## 📊 Performance Gains
-
-| Optimization | Improvement | Use Case |
-|:------------|:-----------:|:---------|
-| `torch.compile` | **1.5-2×** faster | Any PyTorch model |
-| Mixed Precision (AMP) | **2×** speed, **50%** memory | Training |
-| LoRA/QLoRA | **99.9%** fewer params | Fine-tuning 70B models on 24GB GPU |
-| Speculative Decoding | **2-3×** faster generation | LLM inference |
-| GPTQ/AWQ (4-bit) | **4×** memory reduction | Production serving |
-| Flash Attention | **5×** faster, **O(N)** memory | Long sequences |
-| Continuous Batching | **3×** throughput | High-traffic serving |
-
----
-
-## 🏗️ Architecture — Complete ML Lifecycle
+> **Production-ready GPU optimization toolkit for the complete ML lifecycle: Pre-Training → Post-Training → Inference → Evaluation**
 
 ```
-╔════════════════════════════════════════════════════════════════════════════════════╗
-║                              GPU OPTIMIZATION TOOLKIT                               ║
-╠════════════════════════════════════════════════════════════════════════════════════╣
-║                                                                                     ║
-║  ┌───────────────────────────────────────────────────────────────────────────────┐ ║
-║  │  📚 PRE-TRAINING                                                              │ ║
-║  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐          │ ║
-║  │  │   Compile    │ │   Training   │ │    Memory    │ │ Distributed  │          │ ║
-║  │  │ torch.compile│ │ AMP (FP16/   │ │ Pool, Offload│ │ FSDP,        │          │ ║
-║  │  │ CUDA Graphs  │ │ BF16), Grad  │ │ Checkpoint,  │ │ DeepSpeed,   │          │ ║
-║  │  │ TensorRT     │ │ Accum/Clip   │ │ Profiling    │ │ Ray Train    │          │ ║
-║  │  └──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘          │ ║
-║  └───────────────────────────────────────────────────────────────────────────────┘ ║
-║                                         ↓                                           ║
-║  ┌───────────────────────────────────────────────────────────────────────────────┐ ║
-║  │  🎯 POST-TRAINING                                                             │ ║
-║  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐                           │ ║
-║  │  │    LoRA      │ │     PEFT     │ │  Alignment   │  Fine-tune 70B on 24GB!  │ ║
-║  │  │ LoRA, QLoRA, │ │ Adapter,     │ │ RLHF (PPO),  │  Only 0.1% params        │ ║
-║  │  │ DoRA, RS-LoRA│ │ Prefix/Prompt│ │ DPO, KTO     │  trainable              │ ║
-║  │  └──────────────┘ └──────────────┘ └──────────────┘                           │ ║
-║  └───────────────────────────────────────────────────────────────────────────────┘ ║
-║                                         ↓                                           ║
-║  ┌───────────────────────────────────────────────────────────────────────────────┐ ║
-║  │  ⚡ INFERENCE                                                                  │ ║
-║  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐          │ ║
-║  │  │ Speculative  │ │   Batching   │ │   KV-Cache   │ │ Quantization │          │ ║
-║  │  │ Draft model, │ │ Continuous,  │ │ Paged (vLLM),│ │ GPTQ, AWQ,   │          │ ║
-║  │  │ Medusa heads │ │ Dynamic, FIFO│ │ Sliding, Pfx │ │ INT4/INT8    │          │ ║
-║  │  └──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘          │ ║
-║  └───────────────────────────────────────────────────────────────────────────────┘ ║
-║                                         ↓                                           ║
-║  ┌───────────────────────────────────────────────────────────────────────────────┐ ║
-║  │  📏 SERVING & EVALUATION                                                      │ ║
-║  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐          │ ║
-║  │  │   SGLang     │ │  Benchmarks  │ │    Safety    │ │   Metrics    │          │ ║
-║  │  │ Server, CoT, │ │ MMLU, Hella- │ │ Toxicity,    │ │ Latency, P99,│          │ ║
-║  │  │ JSON, Stream │ │ Swag, Eval   │ │ Bias, Filter │ │ Throughput   │          │ ║
-║  │  └──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘          │ ║
-║  └───────────────────────────────────────────────────────────────────────────────┘ ║
-║                                                                                     ║
-╚════════════════════════════════════════════════════════════════════════════════════╝
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  🎯 Train 70B models on 24GB GPU  │  ⚡ 3x faster inference  │  📉 4x memory │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## 📊 Performance at a Glance
+
+| Optimization | Speedup | Memory | Best For |
+|:-------------|:-------:|:------:|:---------|
+| **DDP/FSDP** | Linear scaling | 3× reduction | Multi-GPU training |
+| **torch.compile** | 1.5-2× | - | Any PyTorch model |
+| **Mixed Precision (AMP)** | 2× | 50% less | Training |
+| **LoRA/QLoRA** | - | 99.9% fewer params | Fine-tuning 70B+ |
+| **GaLore** | - | 4× savings | Full-param training |
+| **NEFTune** | - | - | +5-10% instruction following |
+| **ORPO/SimPO** | - | 50% (no ref model) | Preference tuning |
+| **Model Merging** | - | - | Combine model capabilities |
+| **Speculative Decoding** | 2-3× | - | LLM inference |
+| **GPTQ/AWQ (4-bit)** | - | 4× reduction | Production serving |
 
 ---
 
@@ -95,109 +42,292 @@ cd gpu_optimize_demo
 pip install -e ".[all]"
 ```
 
-### 1-Minute Demo
+### 30-Second Examples
 
 ```python
-# ═══════════════════════════════════════════════════════════
-# PRE-TRAINING: Make training 2x faster
-# ═══════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════
+# 🔥 DISTRIBUTED TRAINING — Train on multiple GPUs
+# ═══════════════════════════════════════════════════════════════════════════
 
-# 🔥 torch.compile - One line, 30-200% speedup
-from src.compile import compile_model
-model = compile_model(model, mode="reduce-overhead")
+from src.training import DDPWrapper, DDPConfig, setup_distributed
 
-# 📉 Mixed Precision - 2x speed, 50% memory
-from src.training import AMPTrainer
-trainer = AMPTrainer()
-with trainer.autocast():
-    loss = model(x)
-trainer.backward(loss)
+setup_distributed()  # Initialize distributed environment
 
-# ═══════════════════════════════════════════════════════════
-# POST-TRAINING: Fine-tune 70B on single GPU
-# ═══════════════════════════════════════════════════════════
+# DDP: Simple multi-GPU (model fits in single GPU)
+wrapper = DDPWrapper(DDPConfig(mixed_precision=True, precision="bf16"))
+model = wrapper.wrap(model)
 
-# 🎯 LoRA - Only 0.1% parameters trainable
+for batch in dataloader:
+    with wrapper.autocast():
+        loss = model(batch)
+    wrapper.backward(loss, optimizer, model)
+
+# FSDP: Large models (7B+ parameters)
+from src.training import FSDPWrapper, FSDPConfig
+fsdp_model = FSDPWrapper(FSDPConfig(sharding_strategy="full_shard")).wrap(model)
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 🎯 FINE-TUNING — Train 70B on single 24GB GPU
+# ═══════════════════════════════════════════════════════════════════════════
+
 from src.post_training import apply_lora, LoRAConfig
+
 config = LoRAConfig(r=16, target_modules=["q_proj", "v_proj"])
-model = apply_lora(model, config)
-print(f"Trainable: {model.get_trainable_params():,}")  # Only 4M of 70B!
+model = apply_lora(model, config)  # Only 0.1% parameters trainable!
 
-# 🤝 DPO Alignment - Simpler than RLHF
-from src.post_training import DPOTrainer
-trainer = DPOTrainer(model, ref_model)
-trainer.step(prompt, chosen_response, rejected_response)
+# ═══════════════════════════════════════════════════════════════════════════
+# ⚡ INFERENCE — 3x faster generation
+# ═══════════════════════════════════════════════════════════════════════════
 
-# ═══════════════════════════════════════════════════════════
-# INFERENCE: 3x faster generation
-# ═══════════════════════════════════════════════════════════
+from src.inference import SpeculativeDecoder, quantize_model, QuantizationConfig
 
-# ⚡ Speculative Decoding - 2-3x speedup
-from src.inference import SpeculativeDecoder
-decoder = SpeculativeDecoder(llama_70b, llama_7b)  # Draft with 7B
+# Speculative Decoding: 2-3x speedup
+decoder = SpeculativeDecoder(llama_70b, llama_7b)
 output = decoder.generate(input_ids)
 
-# 📦 4-bit Quantization - 4x memory reduction
-from src.inference import quantize_model, QuantizationConfig
+# 4-bit Quantization: 4x memory reduction
 model = quantize_model(model, QuantizationConfig(bits=4, method="gptq"))
 
-# ═══════════════════════════════════════════════════════════
-# EVALUATION: Benchmark and safety
-# ═══════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════
+# 🌐 HIGH-THROUGHPUT SERVING — Continuous Batching + FP8
+# ═══════════════════════════════════════════════════════════════════════════
 
-# 📊 Run MMLU benchmark
-from src.evaluation import run_benchmark
-result = run_benchmark(model, tokenizer, "mmlu")
-print(f"MMLU: {result.accuracy:.2%}")
+from src.serving import create_server
+from src.inference import FP8KVCache, ChunkedPrefillScheduler
 
-# 🛡️ Safety evaluation
-from src.evaluation import SafetyEvaluator
-evaluator = SafetyEvaluator()
-report = evaluator.evaluate_model(model, tokenizer, test_prompts)
+# Launch OpenAI-compatible server with optimizations
+# - Continuous Batching: Interleave decode/prefill
+# - FP8 Cache: 2x KV capacity
+# - TP: 2-GPU Tensor Parallelism
+create_server(
+    model_path="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    tp_size=2
+)
 ```
 
 ---
 
-## 📦 Module Reference
+## 🏗️ Architecture
 
-### 1️⃣ Pre-Training Optimization
+<div align="center">
+  <img src="doc/assets/architecture.png" alt="Architecture Overview" width="800">
+</div>
+
+### Detailed Flow
+
+```mermaid
+graph TD
+    %% Frontend Layer
+    subgraph "Frontend & API"
+        UI[Streamlit Chat UI] --> |HTTP| API[FastAPI Server]
+        API --> |OpenAI Protocol| Sched[Scheduler]
+    end
+
+    %% Serving Layer
+    subgraph "Serving Engine (Continuous Batching)"
+        Sched --> |Schedule| Batcher[Continuous Batcher]
+        Batcher --> |Chunked Prefill| Chunking[Chunked Prefill]
+        Batcher --> |Request| TP_Driver[TP Driver]
+    end
+
+    %% Inference Orchestration
+    subgraph "Inference Optimizations"
+        TP_Driver --> |Broadcast| W1[Worker 1] & W2[Worker 2]
+        
+        subgraph "Worker Node"
+            Spec[Speculative Decoding] --> |Draft| DraftModel
+            Spec --> |Verify| TargetModel
+            
+            subgraph "Memory Management"
+                Radix[Radix Attention / Prefix Cache]
+                PagedKV[Paged KV Cache]
+                FP8KV[FP8 KV Cache]
+            end
+            
+            TargetModel --> Radix
+            TargetModel --> PagedKV
+        end
+    end
+
+    %% Kernel Layer
+    subgraph "High-Perf Kernels"
+        Triton[Triton Kernels]
+        Triton --> |FP8 Attention| FlashDec[Flash Decoding]
+        Triton --> |FP8 GEMM| GEMM[FP8 MatMul]
+    end
+    
+    TargetModel --> Triton
+
+    %% Training Side (Context)
+    subgraph "Distributed Training"
+        FSDP[FSDP / DDP]
+        3D[3D Parallelism]
+        ZeRO[ZeRO++]
+    end
+```
+
+### Component Details
+
+| Layer | Component | Key Features |
+|-------|-----------|--------------|
+| **Serving** | **OpenAI Server** | FastAPI, SSE Streaming, Async Architecture |
+| **Scheduling** | **Continuous Batcher** | Dynamic Batching, Chunked Prefill (Split-wise), Priority Queues |
+| **Inference** | **Speculative Decoding** | Draft/Verify Logic, Eagle/Medusa support ready |
+| **Memory** | **Advanced KV Cache** | **Radix Attention** (Prefix Caching), **FP8 Compression**, Paged Allocation |
+| **Distributed** | **Tensor Parallel** | SPMD Worker Architecture, Distributed Broadcast |
+| **Kernels** | **Triton Kernels** | **FP8 Flash Decoding**, FlashInfer Integration, Custom Fused Ops |
+| **Training** | **Advanced Training** | **3D Parallelism** (TP+SP+PP), **ZeRO++** (Quantized Comm), Flash Attn v3 |
+
 
 <details>
-<summary><b>🔧 Compile Optimization</b> — torch.compile, CUDA Graphs, TensorRT</summary>
+<summary>📝 Text version (for accessibility)</summary>
+
+```
+PRE-TRAINING: torch.compile → AMP (FP16/BF16) → DDP/FSDP → Memory Pool → Gradient Checkpointing
+      ↓
+POST-TRAINING:
+  ├─ PEFT: LoRA/QLoRA, AdaLoRA, VeRA, GaLore
+  ├─ Alignment: NEFTune, ORPO/SimPO, DPO/RLHF
+  └─ Advanced: Model Merging (TIES/DARE), Continual Learning (EWC)
+      ↓
+INFERENCE: Speculative Decoding → KV-Cache → Quantization (GPTQ/AWQ) → Continuous Batching
+      ↓
+SERVING & EVALUATION: SGLang Server → Benchmarks (MMLU) → Safety → Metrics → Latency Monitoring
+```
+</details>
+
+---
+
+## 📦 Core Modules
+
+### 1️⃣ Distributed Training (DDP / FSDP)
+
+Choose the right strategy for your model:
+
+| Model Size | Strategy | Memory Savings | Use Case |
+|:-----------|:---------|:--------------:|:---------|
+| < 7B | **DDP** | 1× (no sharding) | Simple multi-GPU |
+| 7B - 70B | **FSDP** | ~3× | Single-node multi-GPU |
+| > 70B | **DeepSpeed** | ~8×+ | Multi-node + CPU offload |
+
+<details>
+<summary><b>📖 DDP — Distributed Data Parallel</b></summary>
 
 ```python
-from src.compile import (
-    compile_model,           # torch.compile wrapper
-    CUDAGraphWrapper,        # CUDA Graphs for low latency
-    TensorRTConverter,       # TensorRT for production
-    benchmark_compile,       # Compare modes
+from src.training import DDPWrapper, DDPConfig, setup_distributed, cleanup_distributed
+
+# Initialize
+setup_distributed()
+
+# Configure DDP
+config = DDPConfig(
+    mixed_precision=True,           # Enable AMP
+    precision="bf16",               # BF16 more stable than FP16
+    gradient_clipping=1.0,          # Prevent exploding gradients
+    gradient_accumulation_steps=4,  # Effective batch = 4 × batch_size
+    static_graph=True,              # Faster for fixed architectures
 )
 
-# torch.compile with best mode
-model = compile_model(model, mode="max-autotune")  # Best throughput
+# Wrap model
+wrapper = DDPWrapper(config)
+model = wrapper.wrap(model)
+optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
 
-# CUDA Graphs - 10-30% latency reduction
-wrapper = CUDAGraphWrapper(model, example_input)
-output = wrapper(input)  # Graph replay
+# Training loop
+for epoch in range(num_epochs):
+    for batch in dataloader:
+        with wrapper.autocast():
+            loss = model(batch)
+        wrapper.backward(loss, optimizer, model)  # Handles scaling & clipping
 
-# TensorRT - Production deployment
-converter = TensorRTConverter(model)
-trt_model = converter.convert(precision="fp16")
+# Save checkpoint (rank 0 only)
+wrapper.save_checkpoint(model, optimizer, epoch, "checkpoint.pt")
+
+cleanup_distributed()
+```
+
+**Run:**
+```bash
+torchrun --nproc_per_node=4 train.py
 ```
 </details>
 
 <details>
-<summary><b>📉 Training Optimization</b> — AMP, Gradient Utilities, Optimizers</summary>
+<summary><b>📖 FSDP — Fully Sharded Data Parallel</b></summary>
 
 ```python
-from src.training import (
-    AMPTrainer, AMPConfig,           # Mixed precision
-    GradientAccumulator,             # Gradient accumulation
-    gradient_checkpoint_model,       # Memory savings
-    create_optimizer,                # Fused optimizers
+from src.training import FSDPWrapper, FSDPConfig, DistributedTrainer
+
+# FSDP shards parameters, gradients, and optimizer states across GPUs
+config = FSDPConfig(
+    sharding_strategy="full_shard",   # Maximum memory savings (~3×)
+    mixed_precision=True,
+    precision="bf16",
+    activation_checkpointing=True,    # Further 40-60% memory savings
+    auto_wrap_policy="transformer",   # Auto-wrap transformer blocks
+    cpu_offload=False,                # Enable for extreme memory pressure
 )
 
-# Mixed Precision Training
+# Wrap model
+wrapper = FSDPWrapper(config)
+model = wrapper.wrap(model)
+
+# Or use the unified trainer
+trainer = DistributedTrainer(model, DistributedTrainerConfig(strategy="fsdp"))
+```
+
+**Run:**
+```bash
+torchrun --nproc_per_node=8 train.py  # 8 GPUs
+```
+</details>
+
+<details>
+<summary><b>📖 Auto Strategy Selection</b></summary>
+
+```python
+from src.training import auto_select_strategy, estimate_memory_usage
+
+# Estimate memory requirements
+estimates = estimate_memory_usage(model, batch_size=8)
+print(f"Total memory needed: {estimates['total_gb']:.1f} GB")
+
+# Auto-select best strategy
+strategy = auto_select_strategy(
+    model,
+    available_gpus=torch.cuda.device_count(),
+    gpu_memory_gb=24.0,
+)
+print(f"Recommended strategy: {strategy}")  # "ddp", "fsdp", or "deepspeed"
+```
+</details>
+
+---
+
+### 2️⃣ Training Optimization
+
+<details>
+<summary><b>🔧 torch.compile & CUDA Graphs</b></summary>
+
+```python
+from src.compile import compile_model, CUDAGraphWrapper
+
+# torch.compile — 30-200% speedup with one line
+model = compile_model(model, mode="max-autotune")
+
+# CUDA Graphs — 10-30% latency reduction for inference
+wrapper = CUDAGraphWrapper(model, example_input)
+output = wrapper(input)  # Graph replay
+```
+</details>
+
+
+<details>
+<summary><b>📉 Mixed Precision (AMP)</b></summary>
+
+```python
+from src.training import AMPTrainer, AMPConfig
+
 config = AMPConfig(dtype="bfloat16", enabled=True)
 trainer = AMPTrainer(config)
 
@@ -206,189 +336,266 @@ for batch in dataloader:
         loss = model(batch)
     trainer.backward(loss)
     trainer.step(optimizer)
-
-# Gradient Accumulation (simulate larger batches)
-accumulator = GradientAccumulator(accumulation_steps=4)
-for batch in dataloader:
-    loss = model(batch)
-    if accumulator.step(loss, optimizer):
-        optimizer.step()
-
-# Gradient Checkpointing (50-70% memory savings)
-model = gradient_checkpoint_model(model, checkpoint_ratio=0.5)
 ```
 </details>
 
 <details>
-<summary><b>💾 Memory Optimization</b> — Pool, Offloading, Profiling</summary>
+<summary><b>⚡ Flash Attention (v2/v3)</b></summary>
 
 ```python
-from src.memory import (
-    MemoryPool,              # Tensor reuse
-    CPUOffloader,            # Optimizer state offload
-    MemoryProfiler,          # Track usage
-    print_memory_summary,    # Quick stats
+from src.training import FlashAttention, FlashAttentionConfig
+
+# Drop-in replacement with 2-3x speedup and O(N) memory
+config = FlashAttentionConfig(
+    use_flash_attn=True,
+    version="v3"  # or "auto"
+)
+attn_layer = FlashAttention(config, hidden_size=4096)
+```
+</details>
+
+<details>
+<summary><b>📦 Gradient Compression</b></summary>
+
+```python
+from src.training import create_gradient_compressor
+
+# Reduce communication bandwidth by 10-100x
+compressor = create_gradient_compressor(
+    method="topk",  # "topk", "random", "quantize", "powersgd"
+    ratio=0.01      # Keep top 1% gradients
 )
 
-# Memory Pool for inference
+# In training loop:
+grad = compressor.compress_and_allreduce(param.grad)
+```
+</details>
+
+<details>
+<summary><b>🚀 Optimized DataLoader</b></summary>
+
+```python
+from src.training import create_prefetched_loader, DataLoaderConfig
+
+# Prefetch data to GPU asynchronously (overlaps I/O with compute)
+config = DataLoaderConfig(
+    batch_size=64,
+    prefetch_factor=4,
+    persistent_workers=True
+)
+loader = create_prefetched_loader(dataset, config, device='cuda')
+
+for batch in loader:
+    # batch is already on GPU!
+    output = model(batch)
+```
+</details>
+
+<details>
+<summary><b>🔥 Fused Operations</b></summary>
+
+```python
+from src.training import FusedAdamW, FusedLayerNorm, FusedSwiGLU
+
+# Faster kernels with lower memory bandwidth usage
+optimizer = FusedAdamW(model.parameters(), lr=1e-4)
+norm = FusedLayerNorm(4096)
+mlp = FusedSwiGLU(4096, 11008)
+```
+</details>
+
+<details>
+<summary><b>💾 Memory Optimization</b></summary>
+
+```python
+from src.memory import MemoryPool, CPUOffloader, MemoryProfiler
+
+# Memory Pool — Reuse tensor allocations
 pool = MemoryPool()
 tensor = pool.allocate((1024, 768), dtype=torch.float16)
-# ... use tensor ...
-pool.release(tensor)  # Reuse later
 
-# CPU Offload (2x model size)
+# CPU Offload — 2× model capacity
 offloader = CPUOffloader(model, optimizer)
-for batch in dataloader:
-    loss = model(batch)
-    loss.backward()
-    offloader.step()  # Moves states CPU↔GPU
 
-# Memory Profiling
+# Profiling
 profiler = MemoryProfiler()
-profiler.snapshot("before_forward")
+profiler.snapshot("before")
 output = model(x)
-profiler.snapshot("after_forward")
-print(profiler.delta("before_forward", "after_forward"))
-```
-</details>
-
-<details>
-<summary><b>🌐 Distributed Training</b> — FSDP, DeepSpeed, Ray</summary>
-
-```python
-from src.training import FSDPWrapper, FSDPConfig, DeepSpeedWrapper
-from src.ray_distributed import RayTrainer, RayTrainerConfig
-
-# FSDP - Shard across GPUs
-config = FSDPConfig(
-    sharding_strategy="full_shard",
-    mixed_precision=True,
-    activation_checkpointing=True,
-)
-model = FSDPWrapper(config).wrap(model)
-
-# DeepSpeed ZeRO-3
-ds_model = DeepSpeedWrapper(model, stage=3)
-
-# Ray Train - Multi-node, fault-tolerant
-trainer = RayTrainer(RayTrainerConfig(
-    num_workers=8,
-    use_gpu=True,
-    checkpoint_interval=100,
-))
-trainer.fit(training_function, dataset)
+profiler.snapshot("after")
+print(profiler.delta("before", "after"))
 ```
 </details>
 
 ---
-
-### 2️⃣ Post-Training Optimization
+### 3️⃣ Post-Training (PEFT & Alignment)
 
 <details>
-<summary><b>🎯 LoRA / QLoRA</b> — 10,000x fewer trainable parameters</summary>
+<summary><b>🎯 LoRA / QLoRA / Advanced Variants</b></summary>
 
 ```python
-from src.post_training import (
-    LoRAModel, LoRAConfig,
-    QuantizedLoRA,                   # 4-bit QLoRA
-    apply_lora, merge_lora,         # Convenience functions
-)
+from src.post_training import LoRAModel, LoRAConfig, merge_lora
 
-# Standard LoRA
+# LoRA reduces trainable params by 10,000×
 config = LoRAConfig(
-    r=16,                            # Rank
-    alpha=32,                        # Scaling
+    r=16,                              # Rank
+    alpha=32,                          # Scaling factor
     target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],
     dropout=0.05,
 )
 model = LoRAModel(base_model, config)
 model.print_trainable_params()  # "Trainable: 4,194,304 (0.01%)"
 
-# Train normally - only LoRA params updated
-optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
+# Merge for deployment (zero overhead inference)
+merged_model = merge_lora(model)
+```
+
+**Advanced Variants:**
+```python
+from src.post_training import (
+    VeRALayer,        # 10× fewer params than LoRA
+    AdaLoRATrainer,   # Adaptive rank allocation
+    LoRAXSLayer,      # Ultra-low rank (r=1-2)
+    create_lora_plus_optimizer,  # Different lr for A/B matrices
+)
+
+# VeRA: Shared random projections (most parameter efficient)
+vera_layer = VeRALayer(base_linear, r=256)
+
+# LoRA+: 16× higher lr for B matrix → faster convergence
+optimizer = create_lora_plus_optimizer(model, lr=1e-4, lr_ratio=16.0)
+```
+</details>
+
+<details>
+<summary><b>🤝 ORPO / SimPO — No Reference Model Needed</b></summary>
+
+```python
+from src.post_training import ORPOTrainer, SimPOTrainer, ORPOConfig, SimPOConfig
+
+# ORPO: Combines SFT + preference in single objective
+orpo = ORPOTrainer(model, ORPOConfig(lambda_orpo=0.1))
+for batch in data:
+    stats = orpo.step(batch["chosen"], batch["rejected"])
+
+# SimPO: Length-normalized, no reference model
+simpo = SimPOTrainer(model, SimPOConfig(beta=2.0, gamma=0.5))
+```
+
+**When to use:**
+| Method | Reference Model | Best For |
+|:-------|:---------------:|:---------|
+| DPO | ✅ Required | Standard preference tuning |
+| ORPO | ❌ Not needed | Combined SFT + preference |
+| SimPO | ❌ Not needed | High-quality preference data |
+| IPO | ✅ Required | Noisy preference data |
+</details>
+
+<details>
+<summary><b>📉 GaLore — Full-Parameter Training with LoRA Memory</b></summary>
+
+```python
+from src.post_training import create_galore_optimizer, estimate_galore_memory_savings
+
+# Estimate savings
+savings = estimate_galore_memory_savings(model, rank=128)
+print(f"Memory Savings: {savings['memory_savings_ratio']:.1f}x")
+
+# Create optimizer with gradient projection
+optimizer = create_galore_optimizer(
+    model,
+    lr=1e-4,
+    rank=128,                    # Projection rank
+    update_proj_gap=200,         # Steps between projection updates
+    target_modules=["q_proj", "k_proj", "v_proj"],
+)
+```
+
+**GaLore vs LoRA:**
+- LoRA freezes base model, adds low-rank adapters
+- GaLore trains full model but projects gradients to low-rank
+- Result: Full model updates with LoRA-level memory
+</details>
+
+<details>
+<summary><b>🔊 NEFTune — Noisy Embeddings</b></summary>
+
+```python
+from src.post_training import apply_neftune
+
+# Simple: Add noise to embeddings during training
+# Improves instruction following by 5-10%
+trainer = apply_neftune(model, noise_alpha=5.0)
+
+# Training loop (noise automatically added)
 for batch in dataloader:
-    loss = model(**batch).loss
+    loss = model(batch)
     loss.backward()
     optimizer.step()
 
-# Merge for inference (no overhead)
-merged_model = merge_lora(model)
+# Disable for evaluation
+trainer.disable()
 ```
 </details>
 
 <details>
-<summary><b>🧩 PEFT Methods</b> — Adapter, Prefix, Prompt Tuning</summary>
+<summary><b>🔀 Model Merging (TIES, DARE, SLERP)</b></summary>
 
 ```python
-from src.post_training import (
-    AdapterModel, AdapterConfig,     # Adapter layers
-    PrefixTuning, PrefixConfig,      # Prefix tuning
-    PromptTuning, PromptConfig,      # Soft prompts
+from src.post_training import ModelMerger, ties_merge, dare_merge, slerp_merge
+
+# SLERP: Smooth interpolation between two models
+merged = slerp_merge(model_a, model_b, t=0.5)
+
+# TIES: Prune conflicts, keep important deltas
+merged = ties_merge(base_model, [model_a, model_b], threshold=0.2)
+
+# DARE: Randomly drop 90% of deltas → surprisingly effective
+merged = dare_merge(base_model, [model_a, model_b], drop_rate=0.9)
+
+# Full control
+merger = ModelMerger(base_model)
+merged = merger.merge_models(
+    [model_a, model_b, model_c],
+    config=MergeConfig(method="ties", weights=[0.5, 0.3, 0.2]),
 )
-
-# Adapter Layers (~1-5% extra params)
-config = AdapterConfig(bottleneck_dim=64)
-model = AdapterModel(base_model, config)
-
-# Prefix Tuning (learnable KV prefixes)
-prefix = PrefixTuning(PrefixConfig(
-    prefix_length=20,
-    num_layers=32,
-))
-
-# Prompt Tuning (prepend learnable tokens)
-prompt = PromptTuning(PromptConfig(num_virtual_tokens=20))
-input_embeds = prompt(model.embed(input_ids))
 ```
 </details>
 
 <details>
-<summary><b>🤝 Alignment</b> — RLHF, DPO, KTO</summary>
+<summary><b>📚 Continual Learning (Anti-Forgetting)</b></summary>
 
 ```python
-from src.post_training import (
-    RewardModel,              # Train reward model
-    RLHFTrainer, PPOConfig,   # PPO-based RLHF
-    DPOTrainer, DPOConfig,    # Direct Preference Optimization
-    KTOTrainer,               # Non-paired preferences
-)
+from src.post_training import EWCRegularizer, ReplayBuffer, ContinualLearner
 
-# DPO - Simpler than RLHF, no reward model needed
-trainer = DPOTrainer(
-    model=policy_model,
-    ref_model=reference_model,
-    config=DPOConfig(beta=0.1),
-)
+# EWC: Elastic Weight Consolidation
+ewc = EWCRegularizer(model, lambda_=1000.0)
+# Train task 1...
+ewc.compute_fisher(task1_dataloader)
+ewc.consolidate()
 
-for batch in preference_data:
-    stats = trainer.step(
-        prompt_ids=batch["prompt"],
-        chosen_ids=batch["chosen"],
-        rejected_ids=batch["rejected"],
-    )
-    print(f"Loss: {stats['loss']:.4f}, Acc: {stats['accuracy']:.2%}")
+# Train task 2 with EWC penalty
+for batch in task2_dataloader:
+    loss = criterion(model(batch)) + ewc.penalty()
+    loss.backward()
 
-# RLHF with PPO
-reward_model = RewardModel(base_model)
-rlhf = RLHFTrainer(policy_model, ref_model, reward_model)
+# Replay Buffer: Mix old samples with new
+buffer = ReplayBuffer(max_size=10000)
+buffer.add(task1_samples)
+replay = buffer.sample(batch_size=32)  # Mix with task2
 ```
 </details>
 
 ---
 
-### 3️⃣ Inference Optimization
+### 4️⃣ Inference Optimization
 
 <details>
-<summary><b>⚡ Speculative Decoding</b> — 2-3x faster generation</summary>
+<summary><b>⚡ Speculative Decoding</b></summary>
 
 ```python
-from src.inference import (
-    SpeculativeDecoder, SpeculativeConfig,
-    speculative_generate,
-    benchmark_speculative,
-)
+from src.inference import SpeculativeDecoder, SpeculativeConfig
 
-# Use small model to draft, large model to verify
+# Use small draft model to propose, large model to verify
 decoder = SpeculativeDecoder(
     target_model=llama_70b,
     draft_model=llama_7b,
@@ -398,208 +605,73 @@ decoder = SpeculativeDecoder(
 output = decoder.generate(input_ids, max_new_tokens=256)
 decoder.print_stats()
 # Accept rate: 78%
-# Speedup: 2.3x
-
-# Quick benchmark
-results = benchmark_speculative(llama_70b, llama_7b, input_ids)
-print(f"Speedup: {results['speedup']:.2f}x")
+# Speedup: 2.3×
 ```
 </details>
 
 <details>
-<summary><b>📦 Continuous Batching</b> — Dynamic request handling</summary>
+<summary><b>📉 Quantization (4-bit/8-bit)</b></summary>
 
 ```python
-from src.inference import (
-    ContinuousBatcher, BatchConfig,
-    Request, RequestQueue,
-)
+from src.inference import quantize_model, QuantizationConfig
 
-# Setup batcher
-batcher = ContinuousBatcher(
-    model,
-    config=BatchConfig(max_batch_size=32),
-    tokenizer=tokenizer,
-)
-batcher.start()
-
-# Submit requests (non-blocking)
-request = Request(prompt="What is AI?", max_new_tokens=100)
-batcher.submit(request)
-
-# Get result
-result = batcher.wait(request.id)
-
-# Stats
-print(batcher.get_stats())
-# {'tokens_per_second': 1250, 'requests_per_second': 15}
-```
-</details>
-
-<details>
-<summary><b>🗄️ KV-Cache</b> — Paged, Sliding Window, Prefix</summary>
-
-```python
-from src.inference import (
-    KVCache, KVCacheConfig,
-    PagedKVCache,            # vLLM-style paging
-    SlidingWindowCache,      # For long sequences
-    PrefixCache,             # Share common prefixes
-)
-
-# Standard KV-Cache
-cache = KVCache(KVCacheConfig(
-    num_layers=32,
-    num_heads=32,
-    max_sequence_length=4096,
-))
-
-# Paged KV-Cache (reduce fragmentation)
-paged_cache = PagedKVCache(config)
-block_ids = paged_cache.allocate(request_id, num_tokens=100)
-
-# Sliding Window (constant memory for any length)
-sliding = SlidingWindowCache(window_size=4096)
-```
-</details>
-
-<details>
-<summary><b>📉 Quantization</b> — GPTQ, AWQ, INT4/INT8</summary>
-
-```python
-from src.inference import (
-    quantize_model, QuantizationConfig,
-    GPTQQuantizer, AWQQuantizer,
-    estimate_quantization_savings,
-)
-
-# Quick quantization
+# GPTQ or AWQ 4-bit quantization
 config = QuantizationConfig(
-    bits=4,                  # 4-bit
-    method="gptq",           # or "awq"
+    bits=4,
+    method="gptq",  # or "awq"
     group_size=128,
 )
 quantized = quantize_model(model, config, calibration_data)
+# Memory: 70B model → ~35GB → ~9GB
+```
+</details>
 
-# Estimate savings
-savings = estimate_quantization_savings(model, bits=4)
-print(f"Current: {savings['current_mb']:.0f} MB")
-print(f"After:   {savings['quantized_mb']:.0f} MB")
-print(f"Savings: {savings['compression_ratio']}x")
+<details>
+<summary><b>📦 Continuous Batching & KV-Cache</b></summary>
+
+```python
+from src.inference import ContinuousBatcher, PagedKVCache
+
+# Continuous batching for high throughput
+batcher = ContinuousBatcher(model, tokenizer, max_batch_size=32)
+batcher.start()
+
+# Paged KV-Cache (vLLM-style)
+cache = PagedKVCache(config)
 ```
 </details>
 
 ---
 
-### 4️⃣ Serving & Evaluation
+### 5️⃣ Serving & Evaluation
 
 <details>
-<summary><b>🤖 SGLang Inference</b> — High-performance LLM serving</summary>
+<summary><b>🤖 SGLang Server</b></summary>
 
 ```python
-from src.sglang_inference import (
-    SGLangServer, ServerConfig,
-    generate, chat, generate_batch,
-    JsonGenerator, chain_of_thought,
-)
+from src.sglang_inference import SGLangServer, ServerConfig
 
-# Start server
 server = SGLangServer(ServerConfig(
     model_path="meta-llama/Llama-2-70b-chat-hf",
-    tp_size=4,               # Tensor parallel
+    tp_size=4,  # Tensor parallel across 4 GPUs
     port=30000,
 )).start()
-
-# Generate
-response = generate("Explain quantum computing", max_tokens=512)
-
-# Structured JSON output
-json_gen = JsonGenerator(schema={"type": "object", ...})
-data = json_gen.generate("Create a user profile")
-
-# Chain-of-thought
-result = chain_of_thought(client, "What is 15% of 80?")
-print(result["reasoning"])  # Step-by-step
-print(result["answer"])     # 12
 ```
 </details>
 
 <details>
-<summary><b>📊 Benchmarks</b> — MMLU, HellaSwag, HumanEval</summary>
+<summary><b>📊 Benchmarks & Safety</b></summary>
 
 ```python
-from src.evaluation import (
-    run_benchmark, run_all_benchmarks,
-    MMLUBenchmark, HellaSwagBenchmark,
-)
+from src.evaluation import run_benchmark, SafetyEvaluator
 
-# Run single benchmark
+# MMLU benchmark
 result = run_benchmark(model, tokenizer, "mmlu")
 print(f"MMLU Accuracy: {result.accuracy:.2%}")
 
-# Run all benchmarks
-results = run_all_benchmarks(model, tokenizer, 
-    benchmarks=["mmlu", "hellaswag", "truthfulqa"]
-)
-
-for name, result in results.items():
-    print(f"{name}: {result.accuracy:.2%}")
-```
-</details>
-
-<details>
-<summary><b>🛡️ Safety Evaluation</b> — Toxicity, Bias, Red-teaming</summary>
-
-```python
-from src.evaluation import (
-    SafetyEvaluator, SafetyConfig,
-    ToxicityDetector, BiasAnalyzer,
-    ContentFilter,
-)
-
-# Full safety evaluation
+# Safety evaluation
 evaluator = SafetyEvaluator()
-results = evaluator.evaluate_model(model, tokenizer, test_prompts)
-evaluator.print_report(results)
-
-# Toxicity check
-detector = ToxicityDetector()
-result = detector.check("some text")
-if not result.is_safe:
-    print(f"Flags: {result.flags}")
-
-# Content filter (for production)
-filter = ContentFilter()
-is_safe, text = filter.filter_output(response)
-```
-</details>
-
-<details>
-<summary><b>📈 Metrics</b> — Latency, Throughput, Perplexity</summary>
-
-```python
-from src.evaluation import (
-    LatencyMetrics, ThroughputMetrics,
-    compute_perplexity, benchmark_model,
-    compare_models,
-)
-
-# Latency tracking
-latency = LatencyMetrics()
-for batch in dataloader:
-    latency.start()
-    output = model(batch)
-    latency.end()
-
-latency.print_summary()
-# Mean: 12.5ms, P95: 15.2ms, P99: 18.1ms
-
-# Compare models
-compare_models({
-    "baseline": base_model,
-    "compiled": compiled_model,
-    "quantized": quantized_model,
-}, input_ids)
+report = evaluator.evaluate_model(model, tokenizer, test_prompts)
 ```
 </details>
 
@@ -610,26 +682,30 @@ compare_models({
 ```
 gpu_optimize_demo/
 ├── src/
-│   ├── compile/             # ⚙️ Compilation (torch.compile, CUDA Graphs, TensorRT)
-│   ├── training/            # 📉 Training (AMP, Gradients, Distributed, Optimizers)
-│   ├── memory/              # � Memory (Pool, Offload, Profiling)
-│   ├── post_training/       # 🎯 Post-Training (LoRA, PEFT, RLHF, DPO)
-│   ├── inference/           # ⚡ Inference (Speculative, Batching, KV-Cache, Quant)
-│   ├── evaluation/          # 📏 Evaluation (Benchmarks, Safety, Metrics)
-│   ├── sglang_inference/    # 🤖 SGLang (Server, Client, Structured Gen)
-│   ├── ray_distributed/     # 🚀 Ray (Train, Tune, Serve)
-│   ├── profiling/           # 🔬 Profiling (Torch Profiler, CUDA Timer)
-│   ├── io_optimize/         # ⚡ I/O (DataLoader, Prefetcher, MMap)
-│   ├── nccl/                # 🌐 NCCL (Comm Profiler, Overlap)
-│   └── triton_kernels/      # 🔥 Triton (Flash Attention, Fused Ops)
+│   ├── compile/           # torch.compile, CUDA Graphs, TensorRT
+│   ├── training/          # AMP, DDP, FSDP, DeepSpeed, Gradients
+│   ├── memory/            # Memory Pool, Offloading, Profiling
+│   ├── post_training/     # LoRA, PEFT, RLHF, DPO
+│   ├── inference/         # Speculative, Batching, PagedKV, TP-Worker
+│   ├── serving/           # OpenAI Server, Request Scheduler
+│   ├── evaluation/        # Benchmarks (MMLU), Safety, Metrics
+│   ├── triton_kernels/    # Custom Triton Kernels (FP8, FlashDec)
+│   ├── sglang_inference/  # SGLang Integration
+│   ├── ray_distributed/   # Ray Train, Tune, Serve
+│   ├── profiling/         # Torch Profiler, CUDA Timer
+│   ├── io_optimize/       # DataLoader, Prefetcher
+│   └── nccl/              # Communication Profiler
 │
-├── examples/                # 📚 Ready-to-run examples
-│   ├── training_optimization.py
-│   ├── lora_finetuning.py
-│   ├── inference_optimization.py
+├── examples/              # Ready-to-run examples
+│   ├── advanced_inference.py       # Speculative, Chunking, FP8, TP
+│   ├── eval_serving_mmlu.py        # End-to-end Serving + MMLU Eval
+│   ├── chat_ui.py                  # Streamlit Chat Frontend
+│   ├── ddp_fsdp_training.py        # Distributed training
+│   ├── lora_finetuning.py          # LoRA/QLoRA
 │   └── ...
 │
-└── benchmarks/              # 📊 Benchmark suites
+├── configs/               # Configuration files
+└── benchmarks/            # Benchmark suites
 ```
 
 ---
@@ -637,20 +713,21 @@ gpu_optimize_demo/
 ## 🧪 Examples
 
 ```bash
-# Pre-Training
-python examples/training_optimization.py    # AMP, compile, checkpointing
+# Distributed training
+torchrun --nproc_per_node=4 examples/ddp_fsdp_training.py --strategy fsdp
 
-# Post-Training  
-python examples/lora_finetuning.py          # LoRA/QLoRA fine-tuning
-python examples/dpo_alignment.py            # DPO preference learning
+# Training optimization
+python examples/training_optimization.py
+
+# Fine-tuning
+python examples/lora_finetuning.py
 
 # Inference
-python examples/speculative_decoding.py     # 2-3x faster generation
-python examples/quantization.py             # GPTQ/AWQ 4-bit
+python examples/speculative_decoding.py
+python examples/quantization.py
 
 # Evaluation
-python examples/run_benchmarks.py           # MMLU, HellaSwag
-python examples/safety_evaluation.py        # Toxicity, bias checks
+python examples/run_benchmarks.py
 ```
 
 ---
@@ -662,11 +739,10 @@ python examples/safety_evaluation.py        # Toxicity, bias checks
 | PyTorch | ≥2.0.0 | Core framework |
 | Triton | ≥2.1.0 | Custom GPU kernels |
 | CUDA | ≥12.0 | GPU acceleration |
-| Ray | ≥2.9.0 | Distributed computing |
-| SGLang | ≥0.2.0 | LLM inference |
+| Transformers | ≥4.35.0 | Model support |
 
 <details>
-<summary>📦 Full requirements.txt</summary>
+<summary><b>📦 Full requirements</b></summary>
 
 ```
 torch>=2.0.0
@@ -699,6 +775,6 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ---
 
-_Built for ML engineers who want production-ready optimizations_ 🚀
+_Built for ML engineers who need production-ready GPU optimizations_ 🚀
 
 </div>

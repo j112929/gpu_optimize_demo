@@ -24,6 +24,10 @@ from src.triton_kernels.attention import (
     multi_head_attention,
     grouped_query_attention,
 )
+from src.triton_kernels.fp8_attention import (
+    flash_decode_fp8_triton,
+    FlashInferWrapper,
+)
 from src.triton_kernels.matmul import (
     triton_matmul,
     triton_matmul_splitk,
@@ -64,9 +68,11 @@ __all__ = [
     "fused_silu",
     "fused_rmsnorm",
     # Attention
-    "flash_attention_v2",
+    "flash_attention_v2", # Keeping existing for now, as the instruction was ambiguous about removal
     "multi_head_attention",
     "grouped_query_attention",
+    "flash_decode_fp8_triton",
+    "FlashInferWrapper",
     # MatMul
     "triton_matmul",
     "triton_matmul_splitk",

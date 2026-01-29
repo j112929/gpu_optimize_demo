@@ -331,14 +331,16 @@ def benchmark_speculative(
     """
     # Warmup
     _ = target_model.generate(input_ids, max_new_tokens=10)
-    torch.cuda.synchronize()
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
     
     # Autoregressive baseline
     ar_times = []
     for _ in range(num_runs):
         start = time.perf_counter()
         _ = target_model.generate(input_ids, max_new_tokens=max_new_tokens)
-        torch.cuda.synchronize()
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
         ar_times.append(time.perf_counter() - start)
     
     ar_time = sum(ar_times) / len(ar_times)
@@ -351,7 +353,8 @@ def benchmark_speculative(
         decoder.reset_stats()
         start = time.perf_counter()
         _ = decoder.generate(input_ids, max_new_tokens=max_new_tokens)
-        torch.cuda.synchronize()
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
         spec_times.append(time.perf_counter() - start)
     
     spec_time = sum(spec_times) / len(spec_times)

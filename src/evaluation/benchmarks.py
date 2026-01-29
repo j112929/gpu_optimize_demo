@@ -78,7 +78,7 @@ class Benchmark(ABC):
     @abstractmethod
     def evaluate_sample(
         self,
-        model: nn.Module,
+        model: Union[nn.Module, Callable],
         sample: Dict,
         tokenizer: Any,
     ) -> Tuple[bool, str]:
@@ -92,7 +92,7 @@ class Benchmark(ABC):
     
     def run(
         self,
-        model: nn.Module,
+        model: Union[nn.Module, Callable],
         tokenizer: Any,
     ) -> BenchmarkResult:
         """Run the benchmark."""
@@ -182,7 +182,7 @@ class MMLUBenchmark(Benchmark):
     
     def evaluate_sample(
         self,
-        model: nn.Module,
+        model: Union[nn.Module, Callable],
         sample: Dict,
         tokenizer: Any,
     ) -> Tuple[bool, str]:
@@ -190,22 +190,36 @@ class MMLUBenchmark(Benchmark):
         # Format prompt
         prompt = self._format_prompt(sample)
         
-        # Generate
-        inputs = tokenizer(prompt, return_tensors="pt")
-        inputs = {k: v.to(model.device) for k, v in inputs.items()}
+        prediction = ""
         
-        with torch.no_grad():
-            outputs = model.generate(
-                **inputs,
-                max_new_tokens=1,
-                temperature=0,
-            )
-        
-        prediction = tokenizer.decode(outputs[0, -1])
-        
+        if isinstance(model, nn.Module):
+            # Local PyTorch Model
+            inputs = tokenizer(prompt, return_tensors="pt")
+            inputs = {k: v.to(model.device) for k, v in inputs.items()}
+            
+            with torch.no_grad():
+                outputs = model.generate(
+                    **inputs,
+                    max_new_tokens=1,
+                    temperature=0,
+                )
+            prediction = tokenizer.decode(outputs[0, -1])
+        else:
+            # Remote/Callable Wrapper
+            # Expects prompt -> response text
+            prediction = model(prompt)
+            
         # Check answer
-        is_correct = prediction.strip().upper() == sample["answer"]
-        
+        # Clean prediction (e.g. remove "A. " if present or extra spaces)
+        pred_clean = prediction.strip().split("\n")[0].strip()[-1] if prediction.strip() else ""
+        # Simple heuristic: last char
+        # Better: check if it starts with A/B/C/D
+        if len(prediction.strip()) > 0:
+            first_char = prediction.strip()[0].upper()
+            if first_char in ["A", "B", "C", "D"]:
+                pred_clean = first_char
+            
+        is_correct = pred_clean == sample["answer"]
         return is_correct, prediction
     
     def _format_prompt(self, sample: Dict) -> str:

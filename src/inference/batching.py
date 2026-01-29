@@ -48,6 +48,10 @@ class BatchConfig:
     # Scheduling
     priority_queue: bool = False
     preemption: bool = True              # Allow preempting long sequences
+    
+    # Chunked Prefill
+    chunked_prefill_enabled: bool = True
+    prefill_chunk_size: int = 512        # Max tokens to process in one prefill step
 
 
 class RequestQueue:
@@ -243,10 +247,11 @@ class ContinuousBatcher:
             if request.input_ids is not None:
                 seq = torch.cat([
                     request.input_ids.squeeze(0),
-                    torch.tensor(request.generated_tokens, device=request.input_ids.device),
+                    torch.tensor(request.generated_tokens, device=request.input_ids.device, dtype=request.input_ids.dtype),
                 ])
             else:
-                seq = torch.tensor(request.generated_tokens)
+                # Default to long
+                seq = torch.tensor(request.generated_tokens, dtype=torch.long)
             sequences.append(seq)
         
         # Pad to same length
@@ -373,3 +378,73 @@ def create_batch_inference_server(
     )
     
     return ContinuousBatcher(model, config, tokenizer)
+
+
+# =============================================================================
+# Chunked Prefill Scheduler
+# =============================================================================
+
+class ChunkedPrefillScheduler:
+    """
+    Manages Chunked Prefill scheduling.
+    
+    Splits long prompts into smaller chunks to allow
+    decoding requests to be interleaved, reducing ITL (Inter-Token Latency).
+    """
+    
+    def __init__(self, chunk_size: int = 512):
+        self.chunk_size = chunk_size
+        self.partial_prefills: Dict[str, int] = {} # request_id -> processed_tokens
+        
+    def schedule_step(
+        self,
+        active_requests: List[Request], # Include prefills here
+        budget_tokens: int
+    ) -> Tuple[List[Request], List[Tuple[str, int, int]]]:
+        """
+        Determine which requests to process and which chunks.
+        
+        Returns:
+            - selected_requests: List[Request]
+            - chunk_metadata: List[(req_id, start_idx, length)]
+        """
+        selected = []
+        chunks = []
+        used_budget = 0
+        
+        # 1. Prioritize decodes (requests with generated_tokens > 0)
+        # 2. Then prefills, chunked
+        
+        # Sort: Decodes first
+        sorted_reqs = sorted(active_requests, key=lambda r: 0 if r.generated_tokens else 1)
+        
+        for req in sorted_reqs:
+            if used_budget >= budget_tokens:
+                break
+                
+            is_decode = len(req.generated_tokens) > 0 or req.is_complete
+            
+            if is_decode:
+                # Decode step consumes 1 token budget
+                selected.append(req)
+                chunks.append((req.id, -1, 1)) # -1 implies decode step
+                used_budget += 1
+            else:
+                # Prefill step
+                prompt_len = len(req.input_ids[0]) if req.input_ids is not None else 0
+                processed = self.partial_prefills.get(req.id, 0)
+                
+                remaining = prompt_len - processed
+                if remaining <= 0:
+                    continue # Should be in decode phase theoretically
+                
+                chunk_len = min(remaining, self.chunk_size, budget_tokens - used_budget)
+                
+                if chunk_len > 0:
+                    selected.append(req)
+                    chunks.append((req.id, processed, chunk_len))
+                    
+                    self.partial_prefills[req.id] = processed + chunk_len
+                    used_budget += chunk_len
+                    
+        return selected, chunks

@@ -17,17 +17,22 @@ from src.inference.batching import (
     ContinuousBatcher,
     RequestQueue,
     BatchConfig,
+    ChunkedPrefillScheduler,
 )
 from src.inference.kv_cache import (
-    KVCache,
     PagedKVCache,
-    KVCacheConfig,
+    PrefixCacheManager,
+    FP8KVCache,
 )
 from src.inference.quantize import (
     quantize_model,
     QuantizationConfig,
     AWQQuantizer,
     GPTQQuantizer,
+)
+from src.inference.tp_worker import (
+    TPInferenceWorker,
+    ParallelInferenceEngine,
 )
 
 __all__ = [
@@ -39,13 +44,17 @@ __all__ = [
     "ContinuousBatcher",
     "RequestQueue",
     "BatchConfig",
+    "ChunkedPrefillScheduler",
     # KV Cache
-    "KVCache",
     "PagedKVCache",
-    "KVCacheConfig",
+    "PrefixCacheManager",
+    "FP8KVCache",
     # Quantization
     "quantize_model",
     "QuantizationConfig",
     "AWQQuantizer",
     "GPTQQuantizer",
+    # Distributed
+    "TPInferenceWorker",
+    "ParallelInferenceEngine",
 ]
